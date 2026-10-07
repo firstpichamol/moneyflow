@@ -1,19 +1,61 @@
+import { NextRequest } from "next/server";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+
 export const dynamic = "force-dynamic";
 
-import { getMockTransactions, summarizeTransactions } from "@/lib/mock-data";
-
 export async function GET() {
-  const transactions = getMockTransactions();
-  const summary = summarizeTransactions(transactions);
+  if (!isSupabaseConfigured()) {
+    return Response.json(
+      { ok: false, message: "Supabase is not configured" },
+      { status: 400 }
+    );
+  }
 
-  return Response.json({
-    ok: true,
-    transactions,
-    summary,
-  });
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return Response.json(
+      { ok: false, message: "Supabase client unavailable" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return Response.json({ ok: false, message: error.message }, { status: 500 });
+    }
+
+    return Response.json({
+      ok: true,
+      transactions: data || [],
+    });
+  } catch (error) {
+    console.error("Transactions GET error:", error);
+    return Response.json({ ok: false, message: "Internal error" }, { status: 500 });
+  }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  if (!isSupabaseConfigured()) {
+    return Response.json(
+      { ok: false, message: "Supabase is not configured" },
+      { status: 400 }
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return Response.json(
+      { ok: false, message: "Supabase client unavailable" },
+      { status: 400 }
+    );
+  }
+
   try {
     const body = await request.json();
     const { type, amount, category, description, date } = body ?? {};
@@ -27,22 +69,31 @@ export async function POST(request: Request) {
       return Response.json({ ok: false, message: "Amount must be a positive number" }, { status: 400 });
     }
 
-    const { appendMockTransaction, getMockTransactions: getUpdatedTransactions } = await import("@/lib/mock-data");
-    const transaction = appendMockTransaction({
-      type: String(type).toLowerCase() === "income" ? "income" : "expense",
-      amount: parsedAmount,
-      category: String(category).slice(0, 50),
-      description: String(description).slice(0, 200),
-      date: String(date || new Date().toISOString().slice(0, 10)),
-    });
+    const userId = "demo-user";
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert({
+        user_id: userId,
+        type: String(type).toLowerCase() === "income" ? "income" : "expense",
+        amount: parsedAmount,
+        category: String(category),
+        description: String(description),
+        occurred_at: new Date(date || Date.now()).toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return Response.json({ ok: false, message: error.message }, { status: 500 });
+    }
 
     return Response.json({
       ok: true,
-      transaction,
-      summary: summarizeTransactions(getUpdatedTransactions()),
+      transaction: data,
     });
   } catch (error) {
-    console.error("Transaction API error:", error);
+    console.error("Transaction POST error:", error);
     return Response.json({ ok: false, message: "Failed to create transaction" }, { status: 500 });
   }
 }

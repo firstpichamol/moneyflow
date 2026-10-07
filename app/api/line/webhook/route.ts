@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { parseLineMessage } from "@/lib/line";
-import { appendMockTransaction, getMockTransactions, summarizeTransactions } from "@/lib/mock-data";
+import { createLineSignature, parseLineMessage } from "@/lib/line";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
 export async function GET() {
   return Response.json({
@@ -19,7 +19,6 @@ export async function POST(request: Request) {
 
     // Verify LINE signature if secret is set
     if (secret && signature) {
-      const { createLineSignature } = await import("@/lib/line");
       const expected = createLineSignature(body, secret);
       if (expected !== signature) {
         return Response.json({ ok: false, message: "Invalid signature" }, { status: 401 });
@@ -43,45 +42,92 @@ export async function POST(request: Request) {
     const replies: string[] = [];
 
     for (const event of json.events) {
-      if (event.type !== "message" || event.message?.type !== "text") continue;
+      if (event.type !== "message" || event.message?.type !== "text") {
+        continue;
+      }
 
       const text = (event.message?.text || "").trim();
       if (!text) continue;
 
       let replyText = "";
 
-      // Handle specific commands
+      // Handle commands
       if (text === "ยอดเงิน") {
-        const { totalBalance } = summarizeTransactions(getMockTransactions());
-        replyText = `ยอดเงินปัจจุบัน: ฿${totalBalance.toLocaleString("th-TH")}`;
+        if (!isSupabaseConfigured()) {
+          replyText = "❌ Supabase ยังไม่ได้ตั้งค่า ลองใหม่หลังตั้งค่า environment";
+        } else {
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            const { data = [] } = await supabase.from("transactions").select("*");
+            const income = data.filter((i) => i.type === "income").reduce((s, i) => s + Number(i.amount), 0);
+            const expense = data.filter((i) => i.type === "expense").reduce((s, i) => s + Number(i.amount), 0);
+            const balance = income - expense;
+            replyText = `💰 ยอดเงินปัจจุบัน: ฿${balance.toLocaleString("th-TH")}`;
+          } else {
+            replyText = "❌ ไม่สามารถเชื่อมต่อ Supabase ได้";
+          }
+        }
       } else if (text === "ยอดวันนี้") {
-        const { todayExpense } = summarizeTransactions(getMockTransactions());
-        replyText = `รายจ่ายวันนี้: ฿${todayExpense.toLocaleString("th-TH")}`;
+        const today = new Date().toISOString().slice(0, 10);
+        if (!isSupabaseConfigured()) {
+          replyText = "❌ Supabase ยังไม่ได้ตั้งค่า";
+        } else {
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            const { data = [] } = await supabase.from("transactions").select("*");
+            const todayExpense = data
+              .filter((i) => i.type === "expense" && i.created_at?.slice(0, 10) === today)
+              .reduce((s, i) => s + Number(i.amount), 0);
+            replyText = `📊 รายจ่ายวันนี้: ฿${todayExpense.toLocaleString("th-TH")}`;
+          }
+        }
       } else if (text === "รายการล่าสุด") {
-        const transactions = getMockTransactions().slice(0, 3);
-        replyText = "รายการล่าสุด:\n" + transactions.map((t) => `${t.date} ${t.type === "income" ? "+" : "-"}฿${t.amount} (${t.category})`).join("\n");
-      } else if (text.startsWith("เชื่อม")) {
-        const code = text.slice(3).trim();
-        replyText = `ได้รับรหัส: ${code}\nจำเป็นต้องยืนยันในเว็บ https://moneyflow.app/link`;
+        if (!isSupabaseConfigured()) {
+          replyText = "❌ Supabase ยังไม่ได้ตั้งค่า";
+        } else {
+          const supabase = getSupabaseClient();
+          if (supabase) {
+            const { data = [] } = await supabase.from("transactions").select("*").limit(5);
+            if (data.length === 0) {
+              replyText = "ยังไม่มีรายการใด ๆ";
+            } else {
+              replyText = "📝 รายการล่าสุด:\n" + data.map((t) => `${t.created_at?.slice(0, 10)} ${t.type === "income" ? "➕" : "➖"} ฿${t.amount} - ${t.category}`).join("\n");
+            }
+          }
+        }
       } else {
         // Try to parse as transaction
         const parsed = parseLineMessage(text);
         if (parsed) {
-          const transaction = appendMockTransaction({
-            type: parsed.type,
-            amount: parsed.amount,
-            category: parsed.category,
-            description: parsed.description,
-            date: new Date().toISOString().slice(0, 10),
-          });
-          const { totalBalance } = summarizeTransactions(getMockTransactions());
-          replyText = `บันทึกแล้ว: ${parsed.type === "income" ? "+" : "-"}฿${transaction.amount} (${transaction.category})\nยอดเงินปัจจุบัน: ฿${totalBalance.toLocaleString("th-TH")}`;
+          if (isSupabaseConfigured()) {
+            const supabase = getSupabaseClient();
+            if (supabase) {
+              const { error } = await supabase.from("transactions").insert({
+                user_id: "demo-user",
+                type: parsed.type,
+                amount: parsed.amount,
+                category: parsed.category,
+                description: parsed.description,
+                occurred_at: new Date().toISOString(),
+              });
+
+              if (error) {
+                replyText = `❌ บันทึกไม่สำเร็จ: ${error.message}`;
+              } else {
+                replyText = `✅ บันทึกแล้ว: ${parsed.type === "income" ? "➕" : "➖"}฿${parsed.amount.toLocaleString("th-TH")} (${parsed.category})`;
+              }
+            }
+          } else {
+            replyText = `❌ ยังไม่ได้ตั้งค่า Supabase`;
+          }
         } else {
-          replyText = `ไม่เข้าใจคำสั่ง ลองใช้:\nรายจ่าย 150 อาหาร ข้าวมันไก่\nรายรับ 15000 เงินเดือน\nยอดเงิน\nยอดวันนี้`;
+          replyText = `📌 ไม่เข้าใจคำสั่ง\n\nลองใช้:\nรายจ่าย 150 อาหาร ข้าวมันไก่\nรายรับ 15000 เงินเดือน\nยอดเงิน\nยอดวันนี้\nรายการล่าสุด`;
         }
       }
 
-      // Send reply via LINE API if token is set
+      replies.push(replyText);
+
+      // Send reply via LINE API
       if (accessToken && event.replyToken && replyText) {
         try {
           await fetch("https://api.line.biz/v3/bot/message/reply", {
@@ -99,8 +145,6 @@ export async function POST(request: Request) {
           console.error("Failed to reply via LINE API:", err);
         }
       }
-
-      replies.push(replyText);
     }
 
     return Response.json({ ok: true, replies });
