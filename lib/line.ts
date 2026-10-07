@@ -4,26 +4,27 @@ export function createLineSignature(body: string, secret: string) {
   return crypto.createHmac("sha256", secret).update(body).digest("base64");
 }
 
-export function parseMoneyText(raw: string) {
+export function parseLineMessage(raw: string): { type: "income" | "expense"; amount: number; category: string; description: string } | null {
   const input = raw.trim();
-  const typeMatch = input.match(/(รายรับ|รายจ่าย)/i);
-  const amountMatch = input.match(/(\d+(?:,\d+)?(?:\.\d+)?)/);
-  const categoryMatch = input.match(/(?:รายรับ|รายจ่าย)\s+\d+(?:,\d+)?(?:\.\d+)?\s+([\u0E00-\u0E7F\w\s]+)/i);
 
-  if (!typeMatch || !amountMatch) {
-    return null;
+  // รายจ่าย 150 อาหาร ข้าวมันไก่
+  // รายรับ 15000 เงินเดือน
+  const expenseMatch = input.match(/^รายจ่าย\s+([\d,.]+)(?:\s+([^\s]+))?(?:\s+(.+))?$/i);
+  const incomeMatch = input.match(/^รายรับ\s+([\d,.]+)(?:\s+([^\s]+))?(?:\s+(.+))?$/i);
+
+  if (expenseMatch) {
+    const amount = Number(expenseMatch[1].replace(/,/g, ""));
+    const category = expenseMatch[2] || "อื่น ๆ";
+    const description = expenseMatch[3] || category;
+    return { type: "expense", amount, category, description };
   }
 
-  const type = typeMatch[1].toLowerCase() === "รายรับ" ? "income" : "expense";
-  const amount = Number(amountMatch[1].replace(/,/g, ""));
-  const category = (categoryMatch?.[1] || "ทั่วไป").trim();
-  const description = category || "รายการใหม่";
+  if (incomeMatch) {
+    const amount = Number(incomeMatch[1].replace(/,/g, ""));
+    const category = incomeMatch[2] || "อื่น ๆ";
+    const description = incomeMatch[3] || category;
+    return { type: "income", amount, category, description };
+  }
 
-  return {
-    type,
-    amount,
-    category,
-    description,
-    date: new Date().toISOString().slice(0, 10),
-  };
+  return null;
 }

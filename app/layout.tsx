@@ -1,3 +1,5 @@
+import "./globals.css";
+
 export const metadata = {
   title: "MoneyFlow",
   description: "Personal money tracker with Supabase and LINE bot",

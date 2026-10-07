@@ -11,13 +11,16 @@ export default function HomePage() {
           <span className={styles.badge}>MoneyFlow</span>
           <h1>ติดตามรายรับ–รายจ่ายแบบง่าย ด้วย LINE Bot</h1>
           <p>
-            จดบันทึกรายรับ รายจ่าย และเช็คสรุปยอดได้ทุกวัน ผ่านแอป Next.js
-            พร้อม Supabase และ LINE Messaging API
+            จดบันทึ���รายรับ รายจ่าย แล้วเช็คสรุปยอดไได้ทุกวัน ผ่านแอป Next.js
+            พร้อม Supabase แล้ว LINE Messaging API
           </p>
 
           <div className={styles.actions}>
             <Link href="/dashboard" className={styles.primaryButton}>
               ดู Dashboard
+            </Link>
+            <Link href="/transactions/new" className={styles.secondaryButton}>
+              เพิ่มรายการ
             </Link>
             <Link href="/link" className={styles.secondaryButton}>
               เชื่อม LINE
@@ -40,21 +43,21 @@ export default function HomePage() {
 
           <div className={styles.balanceBox}>
             <small>ยอดเงินปัจจุบัน</small>
-            <strong>฿18,450</strong>
+            <strong>฿ 14,120</strong>
           </div>
 
           <div className={styles.list}>
             <div className={styles.listRow}>
               <span>รายรับ</span>
-              <strong>+฿35,000</strong>
+              <strong>+ ฿ 15,000</strong>
             </div>
             <div className={styles.listRow}>
               <span>รายจ่าย</span>
-              <strong>-฿16,550</strong>
+              <strong>- ฿ 880</strong>
             </div>
             <div className={styles.listRow}>
               <span>รายจ่ายวันนี้</span>
-              <strong>-฿520</strong>
+              <strong>- ฿ 150</strong>
             </div>
           </div>
         </div>
