@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #f3f7ff;
+  --panel: rgba(255, 255, 255, 0.8);
+  --card: #ffffff;
+  --text: #132238;
+  --muted: #4f647c;
+  --primary: #2d6df6;
+  --primary-soft: #eaf1ff;
+  --success: #1bb881;
+  --danger: #eb5757;
+  --border: rgba(17, 24, 39, 0.08);
+  --shadow: 0 20px 60px rgba(24, 39, 75, 0.12);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: linear-gradient(180deg, #eef4ff 0%, #f4f7fb 100%);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  text-decoration: none;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+body {
+  min-height: 100vh;
+}
